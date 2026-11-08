@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>تسجيل الحضور</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #f1f5f9;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 16px;
+      box-sizing: border-box;
+    }
+    .card {
+      background: #ffffff;
+      padding: 24px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+      width: 100%;
+      max-width: 360px;
+      text-align: center;
+    }
+    h2 { margin: 0 0 10px; color: #1e3a8a; font-size: 20px; }
+    p { color: #64748b; font-size: 13px; margin-bottom: 20px; }
+    input {
+      width: 100%;
+      padding: 12px;
+      font-size: 18px;
+      border: 2px solid #cbd5e1;
+      border-radius: 8px;
+      text-align: center;
+      box-sizing: border-box;
+      letter-spacing: 2px;
+      margin-bottom: 14px;
+    }
+    input:focus { border-color: #2563eb; outline: none; }
+    button {
+      width: 100%;
+      padding: 12px;
+      background: #2563eb;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    button:disabled { background: #94a3b8; cursor: not-allowed; }
+    .msg { margin-top: 15px; font-size: 14px; font-weight: 500; }
+    .success { color: #16a34a; }
+    .error { color: #dc2626; }
+  </style>
+</head>
+<body>
+
+<div class="card">
+  <h2>تسجيل الحضور</h2>
+  <p>أدخل الرقم الأكاديمي (7 أرقام)</p>
+  <input type="text" id="studentId" maxlength="7" pattern="\d*" inputmode="numeric" placeholder="مثال: 2601058">
+  <button id="submitBtn">تسجيل الحضور</button>
+  <div id="statusMsg" class="msg"></div>
+</div>
+
+<script>
+  // استبدل هذا برابط قاعدة بياناتك في Firebase
+  const FIREBASE_DB_URL = "https://YOUR_PROJECT_NAME-default-rtdb.firebaseio.com";
+
+  const urlParams = new URLSearchParams(window.location.search);
+  const sessionId = urlParams.get("s");
+
+  const studentIdInput = document.getElementById("studentId");
+  const submitBtn = document.getElementById("submitBtn");
+  const statusMsg = document.getElementById("statusMsg");
+
+  // فحص وجود الجلسة
+  if (!sessionId) {
+    statusMsg.className = "msg error";
+    statusMsg.innerText = "رابط غير صالح: لا يوجد جلسة نشطة.";
+    studentIdInput.disabled = true;
+    submitBtn.disabled = true;
+  }
+
+  submitBtn.addEventListener("click", async () => {
+    const studentId = studentIdInput.value.trim();
+
+    if (!/^\d{7}$/.test(studentId)) {
+      statusMsg.className = "msg error";
+      statusMsg.innerText = "يرجى كتابة رقم ID صحيح مكون من 7 أرقام.";
+      return;
+    }
+
+    // منع الطالب من التسجيل أكثر من مرة من نفس الجهاز
+    if (localStorage.getItem(`attended_${sessionId}`)) {
+      statusMsg.className = "msg error";
+      statusMsg.innerText = "لقد قمت بتسجيل الحضور مسبقاً في هذه الجلسة.";
+      return;
+    }
+
+    submitBtn.disabled = true;
+    statusMsg.className = "msg";
+    statusMsg.innerText = "جاري التحقق والتسجيل...";
+
+    try {
+      // 1. التأكد أن الجلسة ما زالت مفتوحة
+      const sessionCheck = await fetch(`${FIREBASE_DB_URL}/sessions/${sessionId}/active.json`);
+      const isActive = await sessionCheck.json();
+
+      if (isActive !== true) {
+        statusMsg.className = "msg error";
+        statusMsg.innerText = "⚠️ تم إغلاق تسجيل الحضور لهذه الجلسة من قبل المحاضر.";
+        return;
+      }
+
+      // 2. تسجيل الـ ID تحت الجلسة الحالية
+      const res = await fetch(`${FIREBASE_DB_URL}/sessions/${sessionId}/students/${studentId}.json`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          time: new Date().toLocaleTimeString("ar-EG"),
+          timestamp: Date.now()
+        })
+      });
+
+      if (res.ok) {
+        localStorage.setItem(`attended_${sessionId}`, studentId);
+        statusMsg.className = "msg success";
+        statusMsg.innerText = `✅ تم تسجيل حضورك بنجاح! (${studentId})`;
+        studentIdInput.disabled = true;
+      } else {
+        throw new Error("فشل الحفظ");
+      }
+    } catch (e) {
+      statusMsg.className = "msg error";
+      statusMsg.innerText = "حدث خطأ أثناء التسجيل، حاول مجدداً.";
+      submitBtn.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>
