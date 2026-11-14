@@ -26,29 +26,7 @@
       text-align: center;
     }
     h2 { margin: 0 0 10px; color: #1e3a8a; font-size: 20px; }
-    p { color: #64748b; font-size: 13px; margin-bottom: 15px; }
-    
-    /* تنسيق العداد التنازلي التنبيهي */
-    .timer-badge {
-      background: #eff6ff;
-      color: #2563eb;
-      border: 1px solid #bfdbfe;
-      padding: 8px 12px;
-      border-radius: 6px;
-      font-size: 13px;
-      font-weight: bold;
-      margin-bottom: 16px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-    }
-    .timer-badge.warning {
-      background: #fef2f2;
-      color: #dc2626;
-      border-color: #fecaca;
-    }
-
+    p { color: #64748b; font-size: 13px; margin-bottom: 20px; }
     input {
       width: 100%;
       padding: 12px;
@@ -123,11 +101,6 @@
   <h2>تسجيل الحضور</h2>
   <p>أدخل الرقم الأكاديمي (7 أرقام)</p>
   
-  <!-- عنصر العداد التنازلي الحقيقي -->
-  <div id="timerBadge" class="timer-badge">
-    <span>⏳ متبقي لصلاحية الكود: <strong id="countdown">5</strong> ثوانٍ</span>
-  </div>
-
   <input type="text" id="studentId" maxlength="7" pattern="\d*" inputmode="numeric" placeholder="مثال: 2601058">
   <button id="submitBtn">تسجيل الحضور</button>
   <div id="statusMsg" class="msg"></div>
@@ -156,30 +129,11 @@
   const FIREBASE_DB_URL = "https://attendance-system-62561-default-rtdb.firebaseio.com";
   const urlParams = new URLSearchParams(window.location.search);
   const sessionId = urlParams.get("s");
-  const token = urlParams.get("t"); // التوكن المتحرك القادم مع الـ QR
 
   const studentIdInput = document.getElementById("studentId");
   const submitBtn = document.getElementById("submitBtn");
   const statusMsg = document.getElementById("statusMsg");
-  const countdownEl = document.getElementById("countdown");
-  const timerBadge = document.getElementById("timerBadge");
 
-  // عداد تنازلي حقيقي يبدأ من 5 ثوانٍ من لحظة فتح الصفحة
-  let timeLeft = 5;
-  const timerInterval = setInterval(() => {
-    timeLeft--;
-    if (timeLeft > 0) {
-      countdownEl.innerText = timeLeft;
-    } else {
-      clearInterval(timerInterval);
-      timerBadge.className = "timer-badge warning";
-      timerBadge.innerHTML = "<span>انتهت صلاحية هذا الكود، يرجى مسح الكود الجديد من الشاشة.</span>";
-      studentIdInput.disabled = true;
-      submitBtn.disabled = true;
-    }
-  }, 1000);
-
-  // فحص مبدئي لوجود الجلسة
   if (!sessionId) {
     statusMsg.className = "msg error";
     statusMsg.innerText = "رابط غير صالح: لا يوجد جلسة نشطة.";
@@ -203,12 +157,6 @@
       return;
     }
 
-    if (timeLeft <= 0) {
-      statusMsg.className = "msg error";
-      statusMsg.innerText = "انتهت صلاحية الكود! لا يمكن التسجيل بكود قديم.";
-      return;
-    }
-
     if (localStorage.getItem(`attended_${sessionId}`)) {
       statusMsg.className = "msg error";
       statusMsg.innerText = "لقد قمت بتسجيل الحضور مسبقاً في هذه الجلسة.";
@@ -220,7 +168,6 @@
     statusMsg.innerText = "جاري التحقق والتسجيل...";
 
     try {
-      // 1. جلب بيانات الجلسة من Firebase للتحقق الدقيق
       const sessionCheck = await fetch(`${FIREBASE_DB_URL}/sessions/${sessionId}.json`);
       const sessionData = await sessionCheck.json();
 
@@ -231,26 +178,6 @@
         return;
       }
 
-      // 2. التحقق من تطابق التوكن المتحرك (Dynamic QR Token) مع السيرفر
-      if (sessionData.currentToken && token && sessionData.currentToken !== token) {
-        statusMsg.className = "msg error";
-        statusMsg.innerText = "هذا الكود انتهى وتم تحديثه على شاشة المحاضر، يرجى مسح الكود الظاهر حالياً.";
-        submitBtn.disabled = false;
-        return;
-      }
-
-      // 3. التحقق من وقت إنشاء التوكن (Strict 5-Seconds Check on Firebase)
-      if (sessionData.tokenTimestamp) {
-        const elapsedSeconds = (Date.now() - sessionData.tokenTimestamp) / 1000;
-        if (elapsedSeconds > 6) { // سماح بفرق بسيط لسرعة الشبكة (6 ثوانٍ كحد أقصى)
-          statusMsg.className = "msg error";
-          statusMsg.innerText = "لقد استغرقت وقتاً طويلاً، انتهت صلاحية هذا الرمز.";
-          submitBtn.disabled = false;
-          return;
-        }
-      }
-
-      // 4. التحقق هل الرقم الأكاديمي مسجل مسبقاً
       if (sessionData.students && sessionData.students[studentId]) {
         statusMsg.className = "msg error";
         statusMsg.innerText = "هذا الرقم الأكاديمي تم تسجيله مسبقاً في هذه الجلسة.";
@@ -258,7 +185,6 @@
         return;
       }
 
-      // 5. حفظ الحضور في قاعدة البيانات بنجاح
       const attendanceData = {
         time: new Date().toLocaleTimeString("ar-EG"),
         timestamp: Date.now()
