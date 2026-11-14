@@ -173,7 +173,7 @@
     } else {
       clearInterval(timerInterval);
       timerBadge.className = "timer-badge warning";
-      timerBadge.innerHTML = "<span>⚠️ انتهت صلاحية هذا الكود، يرجى مسح الكود الجديد من الشاشة.</span>";
+      timerBadge.innerHTML = "<span>انتهت صلاحية هذا الكود، يرجى مسح الكود الجديد من الشاشة.</span>";
       studentIdInput.disabled = true;
       submitBtn.disabled = true;
     }
@@ -205,7 +205,7 @@
 
     if (timeLeft <= 0) {
       statusMsg.className = "msg error";
-      statusMsg.innerText = "⚠️ انتهت صلاحية الكود! لا يمكن التسجيل بكود قديم.";
+      statusMsg.innerText = "انتهت صلاحية الكود! لا يمكن التسجيل بكود قديم.";
       return;
     }
 
@@ -226,7 +226,7 @@
 
       if (!sessionData || sessionData.active !== true) {
         statusMsg.className = "msg error";
-        statusMsg.innerText = "⚠️ تم إغلاق تسجيل الحضور لهذه الجلسة بواسطة الدكتور.";
+        statusMsg.innerText = "تم إغلاق تسجيل الحضور لهذه الجلسة بواسطة الدكتور.";
         submitBtn.disabled = false;
         return;
       }
@@ -234,7 +234,7 @@
       // 2. التحقق من تطابق التوكن المتحرك (Dynamic QR Token) مع السيرفر
       if (sessionData.currentToken && token && sessionData.currentToken !== token) {
         statusMsg.className = "msg error";
-        statusMsg.innerText = "⚠️ هذا الكود انتهى وتم تحديثه على شاشة المحاضر، يرجى مسح الكود الظاهر حالياً.";
+        statusMsg.innerText = "هذا الكود انتهى وتم تحديثه على شاشة المحاضر، يرجى مسح الكود الظاهر حالياً.";
         submitBtn.disabled = false;
         return;
       }
@@ -244,7 +244,7 @@
         const elapsedSeconds = (Date.now() - sessionData.tokenTimestamp) / 1000;
         if (elapsedSeconds > 6) { // سماح بفرق بسيط لسرعة الشبكة (6 ثوانٍ كحد أقصى)
           statusMsg.className = "msg error";
-          statusMsg.innerText = "⚠️ لقد استغرقت وقتاً طويلاً، انتهت صلاحية هذا الرمز.";
+          statusMsg.innerText = "لقد استغرقت وقتاً طويلاً، انتهت صلاحية هذا الرمز.";
           submitBtn.disabled = false;
           return;
         }
@@ -253,7 +253,7 @@
       // 4. التحقق هل الرقم الأكاديمي مسجل مسبقاً
       if (sessionData.students && sessionData.students[studentId]) {
         statusMsg.className = "msg error";
-        statusMsg.innerText = "⚠️ هذا الرقم الأكاديمي تم تسجيله مسبقاً في هذه الجلسة.";
+        statusMsg.innerText = "هذا الرقم الأكاديمي تم تسجيله مسبقاً في هذه الجلسة.";
         submitBtn.disabled = false;
         return;
       }
@@ -273,7 +273,7 @@
       if (res.ok) {
         localStorage.setItem(`attended_${sessionId}`, studentId);
         statusMsg.className = "msg success";
-        statusMsg.innerText = `✅ تم تسجيل حضورك بنجاح! (${studentId})`;
+        statusMsg.innerText = `تم تسجيل حضورك بنجاح! (${studentId})`;
         studentIdInput.disabled = true;
       } else {
         throw new Error("فشل الحفظ");
