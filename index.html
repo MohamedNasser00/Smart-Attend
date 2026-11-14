@@ -152,7 +152,9 @@
   async function verifyLinkValidity() {
     if (!sessionId || !token) {
       timerBadge.className = "timer-badge warning";
-      timerBadge.innerHTML = "رابط غير صالح أو ناقص.";
+      timerBadge.innerHTML = "❌ الرابط غير صالح أو ناقص (يجب الدخول عبر مسح QR المحاضر).";
+      studentIdInput.style.display = "none";
+      submitBtn.style.display = "none";
       return;
     }
 
