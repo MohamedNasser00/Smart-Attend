@@ -173,7 +173,6 @@
       // الفحص الأمني الحاسم: هل التوكن الموجود في الرابط يطابق التوكن النشط حالياً في السيرفر؟
       if (sessionData.currentToken !== token) {
         timerBadge.className = "timer-badge warning";
-        timerBadge.innerHTML = "هذا الرابط تالف ومنتهي الصلاحية.";
         statusMsg.className = "msg error";
         statusMsg.innerText = "انتهت صلاحية هذا الرابط ولن يعمل. يرجى مسح الكود الحالي من شاشة المحاضر.";
         return;
