@@ -123,9 +123,9 @@
   <h2>تسجيل الحضور</h2>
   <p>أدخل الرقم الأكاديمي (7 أرقام)</p>
   
-  <!-- عنصر العداد التنازلي -->
+  <!-- عنصر العداد التنازلي الحقيقي -->
   <div id="timerBadge" class="timer-badge">
-    <span>⏳ متبقي لتحديث الكود: <strong id="countdown">5</strong> ثوانٍ</span>
+    <span>⏳ متبقي لصلاحية الكود: <strong id="countdown">5</strong> ثوانٍ</span>
   </div>
 
   <input type="text" id="studentId" maxlength="7" pattern="\d*" inputmode="numeric" placeholder="مثال: 2601058">
@@ -164,7 +164,7 @@
   const countdownEl = document.getElementById("countdown");
   const timerBadge = document.getElementById("timerBadge");
 
-  // تشغيل عداد تنازلي لمدة 5 ثوانٍ بصرياً للطالب
+  // عداد تنازلي حقيقي يبدأ من 5 ثوانٍ من لحظة فتح الصفحة
   let timeLeft = 5;
   const timerInterval = setInterval(() => {
     timeLeft--;
@@ -173,7 +173,9 @@
     } else {
       clearInterval(timerInterval);
       timerBadge.className = "timer-badge warning";
-      timerBadge.innerHTML = "<span>⚠️ انتهت صلاحية هذا الكود، يرجى إعادة المسح من الشاشة إن لم تسجل.</span>";
+      timerBadge.innerHTML = "<span>⚠️ انتهت صلاحية هذا الكود، يرجى مسح الكود الجديد من الشاشة.</span>";
+      studentIdInput.disabled = true;
+      submitBtn.disabled = true;
     }
   }, 1000);
 
@@ -184,7 +186,6 @@
     studentIdInput.disabled = true;
     submitBtn.disabled = true;
   } else {
-    // التحقق المحلي السريع إذا كان هذا المتصفح قد سجل مسبقاً
     if (localStorage.getItem(`attended_${sessionId}`)) {
       statusMsg.className = "msg error";
       statusMsg.innerText = "لقد قمت بتسجيل الحضور مسبقاً من هذا المتصفح.";
@@ -202,6 +203,12 @@
       return;
     }
 
+    if (timeLeft <= 0) {
+      statusMsg.className = "msg error";
+      statusMsg.innerText = "⚠️ انتهت صلاحية الكود! لا يمكن التسجيل بكود قديم.";
+      return;
+    }
+
     if (localStorage.getItem(`attended_${sessionId}`)) {
       statusMsg.className = "msg error";
       statusMsg.innerText = "لقد قمت بتسجيل الحضور مسبقاً في هذه الجلسة.";
@@ -213,7 +220,7 @@
     statusMsg.innerText = "جاري التحقق والتسجيل...";
 
     try {
-      // 1. جلب بيانات الجلسة من Firebase للتحقق
+      // 1. جلب بيانات الجلسة من Firebase للتحقق الدقيق
       const sessionCheck = await fetch(`${FIREBASE_DB_URL}/sessions/${sessionId}.json`);
       const sessionData = await sessionCheck.json();
 
@@ -224,15 +231,27 @@
         return;
       }
 
-      // 2. التحقق من صلاحية التوكن المتحرك (Dynamic QR Token - كل 5 ثوانٍ)
+      // 2. التحقق من تطابق التوكن المتحرك (Dynamic QR Token) مع السيرفر
+      // إذا كان التوكن على الشاشة قد تغير خلال الـ 5 ثوانٍ، نرفض الكود القديم فوراً
       if (sessionData.currentToken && token && sessionData.currentToken !== token) {
         statusMsg.className = "msg error";
-        statusMsg.innerText = "⚠️ انتهت صلاحية هذا الرمز (QR Code)، يرجى مسح الكود الحالي الظاهر على الشاشة.";
+        statusMsg.innerText = "⚠️ هذا الكود انتهى وتم تحديثه على شاشة المحاضر، يرجى مسح الكود الظاهر حالياً.";
         submitBtn.disabled = false;
         return;
       }
 
-      // 3. التحقق هل الرقم الأكاديمي مسجل مسبقاً في هذه الجلسة
+      // 3. التحقق من وقت إنشاء التوكن (Strict 5-Seconds Check on Firebase)
+      if (sessionData.tokenTimestamp) {
+        const elapsedSeconds = (Date.now() - sessionData.tokenTimestamp) / 1000;
+        if (elapsedSeconds > 6) { // سماح بفرق بسيط لسرعة الشبكة (6 ثوانٍ كحدقصدي أقصى)
+          statusMsg.className = "msg error";
+          statusMsg.innerText = "⚠️ لقد استغرقت وقتاً طويلاً، انتهت صلاحية هذا الرمز.";
+          submitBtn.disabled = false;
+          return;
+        }
+      }
+
+      // 4. التحقق هل الرقم الأكاديمي مسجل مسبقاً
       if (sessionData.students && sessionData.students[studentId]) {
         statusMsg.className = "msg error";
         statusMsg.innerText = "⚠️ هذا الرقم الأكاديمي تم تسجيله مسبقاً في هذه الجلسة.";
@@ -240,7 +259,7 @@
         return;
       }
 
-      // 4. حفظ الحضور في قاعدة البيانات
+      // 5. حفظ الحضور في قاعدة البيانات بنجاح
       const attendanceData = {
         time: new Date().toLocaleTimeString("ar-EG"),
         timestamp: Date.now()
@@ -253,7 +272,6 @@
       });
 
       if (res.ok) {
-        localStorage.getItem(`attended_${sessionId}`, studentId); // تم التصحيح لتعيين القيمة بشكل صحيح
         localStorage.setItem(`attended_${sessionId}`, studentId);
         statusMsg.className = "msg success";
         statusMsg.innerText = `✅ تم تسجيل حضورك بنجاح! (${studentId})`;
