@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>تسجيل الحضور</title>
+  <!-- استدعاء مكتبة بصمة الجهاز الحقيقية (FingerprintJS) -->
+  <script src="https://openfpcdn.io/fingerprintjs/v3"></script>
   <style>
     body {
       font-family: system-ui, -apple-system, sans-serif;
@@ -106,8 +108,8 @@
 <div class="card">
   <h2>تسجيل الحضور</h2>
   <p>أدخل الرقم الأكاديمي (7 أرقام)</p>
-  <input type="text" id="studentId" maxlength="7" pattern="\d*" inputmode="numeric" placeholder="مثال: 2601058">
-  <button id="submitBtn">تسجيل الحضور</button>
+  <input type="text" id="studentId" maxlength="7" pattern="\d*" inputmode="numeric" placeholder="مثال: 2601058" disabled>
+  <button id="submitBtn" disabled>جاري التحقق من الجهاز...</button>
   <div id="statusMsg" class="msg"></div>
 
   <!-- التوقيع ووسائل التواصل الاجتماعي -->
@@ -134,27 +136,67 @@
   const FIREBASE_DB_URL = "https://attendance-system-62561-default-rtdb.firebaseio.com";
   const urlParams = new URLSearchParams(window.location.search);
   const sessionId = urlParams.get("s");
+  const token = urlParams.get("t"); // التوكن المتحرك الخاص بالـ QR
 
   const studentIdInput = document.getElementById("studentId");
   const submitBtn = document.getElementById("submitBtn");
   const statusMsg = document.getElementById("statusMsg");
 
-  // فحص وجود الجلسة
-  if (!sessionId) {
-    statusMsg.className = "msg error";
-    statusMsg.innerText = "رابط غير صالح: لا يوجد جلسة نشطة.";
-    studentIdInput.disabled = true;
-    submitBtn.disabled = true;
+  let deviceId = null;
+
+  // تهيئة البصمة والحماية عند فتح الصفحة
+  async function initSecurity() {
+    if (!sessionId) {
+      statusMsg.className = "msg error";
+      statusMsg.innerText = "رابط غير صالح: لا يوجد جلسة نشطة.";
+      return;
+    }
+
+    try {
+      // 1. توليد بصمة الجهاز الحقيقية (حتى في التصفح الخفي)
+      const fp = await FingerprintJS.load();
+      const result = await fp.get();
+      deviceId = result.visitorId; // بصمة فريدة ثابتة للجهاز
+
+      // 2. التحقق من صلاحية الجلسة والتوكن المتحرك (Dynamic QR Token)
+      const sessionRes = await fetch(`${FIREBASE_DB_URL}/sessions/${sessionId}.json`);
+      const sessionData = await sessionRes.json();
+
+      if (!sessionData || sessionData.active !== true) {
+        statusMsg.className = "msg error";
+        statusMsg.innerText = "⚠️ تم إغلاق تسجيل الحضور لهذه الجلسة من قبل المحاضر.";
+        return;
+      }
+
+      // التحقق من الـ Token المتحرك إذا كان مفعلاً
+      if (sessionData.currentToken && token && sessionData.currentToken !== token) {
+        statusMsg.className = "msg error";
+        statusMsg.innerText = "⚠️ انتهت صلاحية رمز الكود (QR Code)، يرجى مسح الكود الحالي من على الشاشة.";
+        return;
+      }
+
+      // 3. التحقق عبر السيرفر هل هذا الجهاز سجل مسبقاً؟
+      if (sessionData.devices && sessionData.devices[deviceId]) {
+        const registeredStudent = sessionData.devices[deviceId];
+        statusMsg.className = "msg error";
+        statusMsg.innerText = `⚠️ لقد تم تسجيل حضور مسبقاً من هذا الجهاز برقم (${registeredStudent}). لا يمكن تسجيل أكثر من طالب.`;
+        return;
+      }
+
+      // تفعيل حقل الإدخال وزر التسجيل إذا مرّت الفحوصات بنجاح
+      studentIdInput.disabled = false;
+      submitBtn.disabled = false;
+      submitBtn.innerText = "تسجيل الحضور";
+
+    } catch (err) {
+      statusMsg.className = "msg error";
+      statusMsg.innerText = "حدث خطأ في التحقق من أمان الجهاز.";
+    }
   }
 
-  // --- نظام بصمة الجهاز الفريد (Device ID) لمنع التصفح الخفي ---
-  let deviceId = localStorage.getItem("device_unique_id");
-  if (!deviceId) {
-    // إنشاء معرف فريد عشوائي للجهاز إذا لم يكن موجوداً
-    deviceId = 'dev_' + Math.random().toString(36).substring(2) + Date.now().toString(36);
-    localStorage.setItem("device_unique_id", deviceId);
-  }
+  initSecurity();
 
+  // عملية التسجيل عند الضغط
   submitBtn.addEventListener("click", async () => {
     const studentId = studentIdInput.value.trim();
 
@@ -164,57 +206,40 @@
       return;
     }
 
-    // 1. منع محلي سريع عبر الـ LocalStorage
-    if (localStorage.getItem(`attended_${sessionId}`)) {
-      statusMsg.className = "msg error";
-      statusMsg.innerText = "لقد قمت بتسجيل الحضور مسبقاً.";
-      return;
-    }
-
     submitBtn.disabled = true;
     statusMsg.className = "msg";
-    statusMsg.innerText = "جاري التحقق والتسجيل...";
+    statusMsg.innerText = "جاري الحفظ...";
 
     try {
-      // 2. التأكد أن الجلسة ما زالت مفتوحة
-      const sessionCheck = await fetch(`${FIREBASE_DB_URL}/sessions/${sessionId}/active.json`);
-      const isActive = await sessionCheck.json();
+      // إعادة التحقق المزدوج قبل الحفظ النهائي لمنع أي سباق (Race Condition)
+      const checkRes = await fetch(`${FIREBASE_DB_URL}/sessions/${sessionId}.json`);
+      const sData = await checkRes.json();
 
-      if (isActive !== true) {
+      if (!sData || sData.active !== true) {
         statusMsg.className = "msg error";
-        statusMsg.innerText = "تم إغلاق تسجيل الحضور لهذه الجلسة بواسطة الدكتور.";
+        statusMsg.innerText = "⚠️ تم إغلاق تسجيل الحضور.";
         return;
       }
 
-      // 3. التحقق عبر قاعدة البيانات (Firebase) هل هذا الجهاز سجل مسبقاً في هذه الجلسة؟
-      const deviceCheckRes = await fetch(`${FIREBASE_DB_URL}/sessions/${sessionId}/devices/${deviceId}.json`);
-      const registeredStudent = await deviceCheckRes.json();
-
-      if (registeredStudent) {
+      if (sData.devices && sData.devices[deviceId]) {
         statusMsg.className = "msg error";
-        statusMsg.innerText = `⚠️ لقد تم تسجيل حضور مسبقاً من هذا الجهاز برقم (${registeredStudent}). لا يمكن تسجيل أكثر من طالب.`;
-        localStorage.setItem(`attended_${sessionId}`, registeredStudent); // مزامنة محلية
+        statusMsg.innerText = "⚠️ تم التسجيل مسبقاً من هذا الجهاز.";
         return;
       }
 
-      // 4. تسجيل الحضور وحفظ بصمة الجهاز في Firebase (مع منع تكرار رقم الطالب أيضاً)
-      const studentCheckRes = await fetch(`${FIREBASE_DB_URL}/sessions/${sessionId}/students/${studentId}.json`);
-      const studentExists = await studentCheckRes.json();
-
-      if (studentExists) {
+      if (sData.students && sData.students[studentId]) {
         statusMsg.className = "msg error";
-        statusMsg.innerText = "⚠️ هذا الرقم الأكاديمي تم تسجيله مسبقاً في هذه الجلسة.";
+        statusMsg.innerText = "⚠️ هذا الرقم الأكاديمي مسجل بالفعل.";
         return;
       }
 
-      // تنفيذ الحفظ (حفظ الطالب + ربطه ببصمة الجهاز في نفس الوقت)
+      // حفظ البيانات في قاعدة البيانات
       const attendanceData = {
         time: new Date().toLocaleTimeString("ar-EG"),
         timestamp: Date.now(),
         deviceId: deviceId
       };
 
-      // استخدام Promise.all لحفظ الطالب وتسجيل بصمة الجهاز في قواعد بيانات فايربيس معاً
       await Promise.all([
         fetch(`${FIREBASE_DB_URL}/sessions/${sessionId}/students/${studentId}.json`, {
           method: "PUT",
@@ -228,8 +253,6 @@
         })
       ]);
 
-      // نجاح العملية وتثبيت القفل المحلي
-      localStorage.setItem(`attended_${sessionId}`, studentId);
       statusMsg.className = "msg success";
       statusMsg.innerText = `✅ تم تسجيل حضورك بنجاح! (${studentId})`;
       studentIdInput.disabled = true;
