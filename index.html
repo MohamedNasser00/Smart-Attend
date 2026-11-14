@@ -27,22 +27,6 @@
     }
     h2 { margin: 0 0 10px; color: #1e3a8a; font-size: 20px; }
     p { color: #64748b; font-size: 13px; margin-bottom: 15px; }
-    
-    .timer-badge {
-      background: #eff6ff;
-      color: #2563eb;
-      border: 1px solid #bfdbfe;
-      padding: 8px 12px;
-      border-radius: 6px;
-      font-size: 13px;
-      font-weight: bold;
-      margin-bottom: 16px;
-    }
-    .timer-badge.warning {
-      background: #fef2f2;
-      color: #dc2626;
-      border-color: #fecaca;
-    }
 
     input {
       width: 100%;
@@ -117,7 +101,6 @@
   <h2>تسجيل الحضور</h2>
   <p>أدخل الرقم الأكاديمي (7 أرقام)</p>
   
-  <div id="timerBadge" class="timer-badge">جاري التحقق من صلاحية الرابط...</div>
   <input type="text" id="studentId" maxlength="7" pattern="\d*" inputmode="numeric" placeholder="مثال: 2601058" disabled>
   <button id="submitBtn" disabled>جاري التحقق...</button>
   <div id="statusMsg" class="msg"></div>
@@ -147,13 +130,12 @@
   const studentIdInput = document.getElementById("studentId");
   const submitBtn = document.getElementById("submitBtn");
   const statusMsg = document.getElementById("statusMsg");
-  const timerBadge = document.getElementById("timerBadge");
 
   async function verifyLinkValidity() {
     if (!sessionId || !token) {
-      if (timerBadge) {
-        timerBadge.className = "timer-badge warning";
-        timerBadge.innerHTML = "❌ الرابط غير صالح أو ناقص.";
+      if (statusMsg) {
+        statusMsg.className = "msg error";
+        statusMsg.innerText = "رابط غير صالح، يرجى مسح الكود من شاشة المحاضر.";
       }
       if (studentIdInput) studentIdInput.style.display = "none";
       if (submitBtn) submitBtn.style.display = "none";
@@ -165,38 +147,37 @@
       const sessionData = await res.json();
 
       if (!sessionData || sessionData.active !== true) {
-        if (timerBadge) {
-          timerBadge.className = "timer-badge warning";
-          timerBadge.innerHTML = "هذه الجلسة مغلقة.";
+        if (statusMsg) {
+          statusMsg.className = "msg error";
+          statusMsg.innerText = "هذه الجلسة مغلقة.";
         }
+        if (studentIdInput) studentIdInput.disabled = true;
+        if (submitBtn) submitBtn.disabled = true;
         return;
       }
 
       if (sessionData.currentToken !== token) {
-        if (timerBadge) {
-          timerBadge.className = "timer-badge warning";
-        }
         if (statusMsg) {
           statusMsg.className = "msg error";
-          statusMsg.innerText = "انتهت صلاحية هذا الرابط. يرجى مسح الكود الحالي.";
+          statusMsg.innerText = "انتهت صلاحية هذا الرابط، يرجى مسح الكود الحالي من شاشة المحاضر.";
         }
+        if (studentIdInput) studentIdInput.disabled = true;
+        if (submitBtn) submitBtn.disabled = true;
         return;
       }
 
-      if (timerBadge) {
-        timerBadge.className = "timer-badge";
-        timerBadge.innerHTML = "الرابط نشط وصحيح";
-      }
+      // إذا كان صالحاً، افتح الحقول وزر التسجيل مباشرة بدون أي رسائل علوية زائدة
       if (studentIdInput) studentIdInput.disabled = false;
       if (submitBtn) {
         submitBtn.disabled = false;
         submitBtn.innerText = "تسجيل الحضور";
       }
+      if (statusMsg) statusMsg.innerText = "";
 
     } catch (err) {
-      if (timerBadge) {
-        timerBadge.className = "timer-badge warning";
-        timerBadge.innerHTML = "خطأ في الاتصال بالخادم.";
+      if (statusMsg) {
+        statusMsg.className = "msg error";
+        statusMsg.innerText = "خطأ في الاتصال بالخادم، حاول مجدداً.";
       }
     }
   }
@@ -236,7 +217,7 @@
         if (!sessionData || sessionData.active !== true || sessionData.currentToken !== token) {
           if (statusMsg) {
             statusMsg.className = "msg error";
-            statusMsg.innerText = "انتهت صلاحية هذا الرابط تماماً، لا يمكن التسجيل.";
+            statusMsg.innerText = "انتهت صلاحية هذا الرابط، يرجى مسح الكود الحالي من شاشة المحاضر.";
           }
           submitBtn.disabled = false;
           return;
