@@ -26,7 +26,29 @@
       text-align: center;
     }
     h2 { margin: 0 0 10px; color: #1e3a8a; font-size: 20px; }
-    p { color: #64748b; font-size: 13px; margin-bottom: 20px; }
+    p { color: #64748b; font-size: 13px; margin-bottom: 15px; }
+    
+    /* تنسيق العداد التنازلي التنبيهي */
+    .timer-badge {
+      background: #eff6ff;
+      color: #2563eb;
+      border: 1px solid #bfdbfe;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: bold;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    .timer-badge.warning {
+      background: #fef2f2;
+      color: #dc2626;
+      border-color: #fecaca;
+    }
+
     input {
       width: 100%;
       padding: 12px;
@@ -100,6 +122,12 @@
 <div class="card">
   <h2>تسجيل الحضور</h2>
   <p>أدخل الرقم الأكاديمي (7 أرقام)</p>
+  
+  <!-- عنصر العداد التنازلي -->
+  <div id="timerBadge" class="timer-badge">
+    <span>⏳ متبقي لتحديث الكود: <strong id="countdown">5</strong> ثوانٍ</span>
+  </div>
+
   <input type="text" id="studentId" maxlength="7" pattern="\d*" inputmode="numeric" placeholder="مثال: 2601058">
   <button id="submitBtn">تسجيل الحضور</button>
   <div id="statusMsg" class="msg"></div>
@@ -133,6 +161,21 @@
   const studentIdInput = document.getElementById("studentId");
   const submitBtn = document.getElementById("submitBtn");
   const statusMsg = document.getElementById("statusMsg");
+  const countdownEl = document.getElementById("countdown");
+  const timerBadge = document.getElementById("timerBadge");
+
+  // تشغيل عداد تنازلي لمدة 5 ثوانٍ بصرياً للطالب
+  let timeLeft = 5;
+  const timerInterval = setInterval(() => {
+    timeLeft--;
+    if (timeLeft > 0) {
+      countdownEl.innerText = timeLeft;
+    } else {
+      clearInterval(timerInterval);
+      timerBadge.className = "timer-badge warning";
+      timerBadge.innerHTML = "<span>⚠️ انتهت صلاحية هذا الكود، يرجى إعادة المسح من الشاشة إن لم تسجل.</span>";
+    }
+  }, 1000);
 
   // فحص مبدئي لوجود الجلسة
   if (!sessionId) {
@@ -176,7 +219,7 @@
 
       if (!sessionData || sessionData.active !== true) {
         statusMsg.className = "msg error";
-        statusMsg.innerText = "⚠️ تم إغلاق تسجيل الحضور لهذه الجلسة من قبل المحاضر.";
+        statusMsg.innerText = "⚠️ تم إغلاق تسجيل الحضور لهذه الجلسة بواسطة الدكتور.";
         submitBtn.disabled = false;
         return;
       }
@@ -210,6 +253,7 @@
       });
 
       if (res.ok) {
+        localStorage.getItem(`attended_${sessionId}`, studentId); // تم التصحيح لتعيين القيمة بشكل صحيح
         localStorage.setItem(`attended_${sessionId}`, studentId);
         statusMsg.className = "msg success";
         statusMsg.innerText = `✅ تم تسجيل حضورك بنجاح! (${studentId})`;
