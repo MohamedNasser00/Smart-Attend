@@ -117,8 +117,9 @@
   <h2>تسجيل الحضور</h2>
   <p>أدخل الرقم الأكاديمي (7 أرقام)</p>
   
+  <div id="timerBadge" class="timer-badge">جاري التحقق من صلاحية الرابط...</div>
   <input type="text" id="studentId" maxlength="7" pattern="\d*" inputmode="numeric" placeholder="مثال: 2601058" disabled>
-  <button id="submitBtn" disabled>جاري التحقق من صلاحية الرابط...</button>
+  <button id="submitBtn" disabled>جاري التحقق...</button>
   <div id="statusMsg" class="msg"></div>
 
   <div class="footer-brand">
@@ -141,14 +142,13 @@
   const FIREBASE_DB_URL = "https://attendance-system-62561-default-rtdb.firebaseio.com";
   const urlParams = new URLSearchParams(window.location.search);
   const sessionId = urlParams.get("s");
-  const token = urlParams.get("t"); // التوكن الموجود في الرابط
+  const token = urlParams.get("t");
 
   const studentIdInput = document.getElementById("studentId");
   const submitBtn = document.getElementById("submitBtn");
   const statusMsg = document.getElementById("statusMsg");
   const timerBadge = document.getElementById("timerBadge");
 
-  // فحص صلاحية الرابط فور فتح الصفحة من السيرفر
   async function verifyLinkValidity() {
     if (!sessionId || !token) {
       timerBadge.className = "timer-badge warning";
@@ -166,23 +166,22 @@
         return;
       }
 
-      // الفحص الأمني الحاسم: هل التوكن الموجود في الرابط يطابق التوكن النشط حالياً في السيرفر؟
       if (sessionData.currentToken !== token) {
         timerBadge.className = "timer-badge warning";
         statusMsg.className = "msg error";
-        statusMsg.innerText = "انتهت صلاحية هذا الرابط ولن يعمل. يرجى مسح الكود الحالي من شاشة المحاضر.";
+        statusMsg.innerText = "انتهت صلاحية هذا الرابط. يرجى مسح الكود الحالي من شاشة المحاضر.";
         return;
       }
 
-      // إذا كان الرابط صحيحاً ونشطاً، تفعيل الصفحة للمستخدم
       timerBadge.className = "timer-badge";
+      timerBadge.innerHTML = "الرابط نشط وصحيح";
       studentIdInput.disabled = false;
       submitBtn.disabled = false;
       submitBtn.innerText = "تسجيل الحضور";
 
     } catch (err) {
       timerBadge.className = "timer-badge warning";
-      timerBadge.innerHTML = "خطأ في الاتصال بالاتصال.";
+      timerBadge.innerHTML = "خطأ في الاتصال بالخادم.";
     }
   }
 
