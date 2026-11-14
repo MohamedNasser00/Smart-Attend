@@ -147,6 +147,14 @@
     submitBtn.disabled = true;
   }
 
+  // --- نظام بصمة الجهاز الفريد (Device ID) لمنع التصفح الخفي ---
+  let deviceId = localStorage.getItem("device_unique_id");
+  if (!deviceId) {
+    // إنشاء معرف فريد عشوائي للجهاز إذا لم يكن موجوداً
+    deviceId = 'dev_' + Math.random().toString(36).substring(2) + Date.now().toString(36);
+    localStorage.setItem("device_unique_id", deviceId);
+  }
+
   submitBtn.addEventListener("click", async () => {
     const studentId = studentIdInput.value.trim();
 
@@ -156,10 +164,10 @@
       return;
     }
 
-    // منع الطالب من التسجيل أكثر من مرة من نفس الجهاز
+    // 1. منع محلي سريع عبر الـ LocalStorage
     if (localStorage.getItem(`attended_${sessionId}`)) {
       statusMsg.className = "msg error";
-      statusMsg.innerText = "لقد قمت بتسجيل الحضور مسبقاً في هذه الجلسة.";
+      statusMsg.innerText = "لقد قمت بتسجيل الحضور مسبقاً من هذا المتصفح.";
       return;
     }
 
@@ -168,7 +176,7 @@
     statusMsg.innerText = "جاري التحقق والتسجيل...";
 
     try {
-      // 1. التأكد أن الجلسة ما زالت مفتوحة
+      // 2. التأكد أن الجلسة ما زالت مفتوحة
       const sessionCheck = await fetch(`${FIREBASE_DB_URL}/sessions/${sessionId}/active.json`);
       const isActive = await sessionCheck.json();
 
@@ -178,24 +186,54 @@
         return;
       }
 
-      // 2. تسجيل الـ ID تحت الجلسة الحالية
-      const res = await fetch(`${FIREBASE_DB_URL}/sessions/${sessionId}/students/${studentId}.json`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          time: new Date().toLocaleTimeString("ar-EG"),
-          timestamp: Date.now()
-        })
-      });
+      // 3. التحقق عبر قاعدة البيانات (Firebase) هل هذا الجهاز سجل مسبقاً في هذه الجلسة؟
+      const deviceCheckRes = await fetch(`${FIREBASE_DB_URL}/sessions/${sessionId}/devices/${deviceId}.json`);
+      const registeredStudent = await deviceCheckRes.json();
 
-      if (res.ok) {
-        localStorage.setItem(`attended_${sessionId}`, studentId);
-        statusMsg.className = "msg success";
-        statusMsg.innerText = `✅ تم تسجيل حضورك بنجاح! (${studentId})`;
-        studentIdInput.disabled = true;
-      } else {
-        throw new Error("فشل الحفظ");
+      if (registeredStudent) {
+        statusMsg.className = "msg error";
+        statusMsg.innerText = `⚠️ لقد تم تسجيل حضور مسبقاً من هذا الجهاز برقم (${registeredStudent}). لا يمكن تسجيل أكثر من طالب.`;
+        localStorage.setItem(`attended_${sessionId}`, registeredStudent); // مزامنة محلية
+        return;
       }
+
+      // 4. تسجيل الحضور وحفظ بصمة الجهاز في Firebase (مع منع تكرار رقم الطالب أيضاً)
+      const studentCheckRes = await fetch(`${FIREBASE_DB_URL}/sessions/${sessionId}/students/${studentId}.json`);
+      const studentExists = await studentCheckRes.json();
+
+      if (studentExists) {
+        statusMsg.className = "msg error";
+        statusMsg.innerText = "⚠️ هذا الرقم الأكاديمي تم تسجيله مسبقاً في هذه الجلسة.";
+        return;
+      }
+
+      // تنفيذ الحفظ (حفظ الطالب + ربطه ببصمة الجهاز في نفس الوقت)
+      const attendanceData = {
+        time: new Date().toLocaleTimeString("ar-EG"),
+        timestamp: Date.now(),
+        deviceId: deviceId
+      };
+
+      // استخدام Promise.all لحفظ الطالب وتسجيل بصمة الجهاز في قواعد بيانات فايربيس معاً
+      await Promise.all([
+        fetch(`${FIREBASE_DB_URL}/sessions/${sessionId}/students/${studentId}.json`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(attendanceData)
+        }),
+        fetch(`${FIREBASE_DB_URL}/sessions/${sessionId}/devices/${deviceId}.json`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(studentId)
+        })
+      ]);
+
+      // نجاح العملية وتثبيت القفل المحلي
+      localStorage.setItem(`attended_${sessionId}`, studentId);
+      statusMsg.className = "msg success";
+      statusMsg.innerText = `✅ تم تسجيل حضورك بنجاح! (${studentId})`;
+      studentIdInput.disabled = true;
+
     } catch (e) {
       statusMsg.className = "msg error";
       statusMsg.innerText = "حدث خطأ أثناء التسجيل، حاول مجدداً.";
