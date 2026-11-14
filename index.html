@@ -167,7 +167,7 @@
     // 1. منع محلي سريع عبر الـ LocalStorage
     if (localStorage.getItem(`attended_${sessionId}`)) {
       statusMsg.className = "msg error";
-      statusMsg.innerText = "لقد قمت بتسجيل الحضور مسبقاً من هذا المتصفح.";
+      statusMsg.innerText = "لقد قمت بتسجيل الحضور مسبقاً من هذا.";
       return;
     }
 
