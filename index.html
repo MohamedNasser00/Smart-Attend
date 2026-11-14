@@ -144,7 +144,7 @@
 
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 7000);
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
 
       const res = await fetch(`${FIREBASE_DB_URL}/sessions/${sessionId}.json`, {
         signal: controller.signal
@@ -236,4 +236,53 @@
             statusMsg.className = "msg error";
             statusMsg.innerText = "انتهت صلاحية هذا الرابط، يرجى مسح الكود الحالي من شاشة الدكتور.";
           }
-          submitBtn.disabled
+          submitBtn.disabled = false;
+          submitBtn.innerText = "تسجيل الحضور";
+          return;
+        }
+
+        if (sessionData.students && sessionData.students[studentId]) {
+          if (statusMsg) {
+            statusMsg.className = "msg error";
+            statusMsg.innerText = "هذا الرقم الأكاديمي تم تسجيله مسبقاً في هذه الجلسة.";
+          }
+          submitBtn.disabled = false;
+          submitBtn.innerText = "تسجيل الحضور";
+          return;
+        }
+
+        const attendanceData = {
+          time: new Date().toLocaleTimeString("ar-EG"),
+          timestamp: Date.now()
+        };
+
+        const res = await fetch(`${FIREBASE_DB_URL}/sessions/${sessionId}/students/${studentId}.json`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(attendanceData)
+        });
+
+        if (res.ok) {
+          localStorage.setItem(`attended_${sessionId}`, studentId);
+          if (statusMsg) {
+            statusMsg.className = "msg success";
+            statusMsg.innerText = `تم تسجيل حضورك بنجاح! (${studentId})`;
+          }
+          if (studentIdInput) studentIdInput.disabled = true;
+          submitBtn.style.display = "none";
+        } else {
+          throw new Error("فشل الحفظ");
+        }
+      } catch (e) {
+        if (statusMsg) {
+          statusMsg.className = "msg error";
+          statusMsg.innerText = "انتهت صلاحية هذا الرابط، يرجى مسح الكود الحالي من شاشة الدكتور.";
+        }
+        submitBtn.disabled = false;
+        submitBtn.innerText = "تسجيل الحضور";
+      }
+    });
+  }
+</script>
+</body>
+</html>
