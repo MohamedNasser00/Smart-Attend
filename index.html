@@ -135,7 +135,7 @@
     if (!sessionId || !token) {
       if (statusMsg) {
         statusMsg.className = "msg error";
-        statusMsg.innerText = "رابط غير صالح، يرجى مسح الكود من شاشة المحاضر.";
+        statusMsg.innerText = "رابط غير صالح، يرجى مسح الكود من شاشة الدكتور.";
       }
       if (studentIdInput) studentIdInput.style.display = "none";
       if (submitBtn) submitBtn.style.display = "none";
@@ -143,7 +143,14 @@
     }
 
     try {
-      const res = await fetch(`${FIREBASE_DB_URL}/sessions/${sessionId}.json`);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 7000);
+
+      const res = await fetch(`${FIREBASE_DB_URL}/sessions/${sessionId}.json`, {
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+
       const sessionData = await res.json();
 
       if (!sessionData || sessionData.active !== true) {
@@ -152,21 +159,26 @@
           statusMsg.innerText = "هذه الجلسة مغلقة.";
         }
         if (studentIdInput) studentIdInput.disabled = true;
-        if (submitBtn) submitBtn.disabled = true;
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.innerText = "انتهت الجلسة";
+        }
         return;
       }
 
       if (sessionData.currentToken !== token) {
         if (statusMsg) {
           statusMsg.className = "msg error";
-          statusMsg.innerText = "انتهت صلاحية هذا الرابط، يرجى مسح الكود الحالي من شاشة المحاضر.";
+          statusMsg.innerText = "انتهت صلاحية هذا الرابط، يرجى مسح الكود الحالي من شاشة الدكتور.";
         }
         if (studentIdInput) studentIdInput.disabled = true;
-        if (submitBtn) submitBtn.disabled = true;
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.innerText = "انتهت صلاحية الكود";
+        }
         return;
       }
 
-      // إذا كان صالحاً، افتح الحقول وزر التسجيل مباشرة بدون أي رسائل علوية زائدة
       if (studentIdInput) studentIdInput.disabled = false;
       if (submitBtn) {
         submitBtn.disabled = false;
@@ -177,7 +189,12 @@
     } catch (err) {
       if (statusMsg) {
         statusMsg.className = "msg error";
-        statusMsg.innerText = "خطأ في الاتصال بالخادم، حاول مجدداً.";
+        statusMsg.innerText = "انتهت صلاحية هذا الرابط، يرجى مسح الكود الحالي من شاشة الدكتور.";
+      }
+      if (studentIdInput) studentIdInput.disabled = true;
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerText = "انتهت صلاحية الكود";
       }
     }
   }
@@ -217,51 +234,6 @@
         if (!sessionData || sessionData.active !== true || sessionData.currentToken !== token) {
           if (statusMsg) {
             statusMsg.className = "msg error";
-            statusMsg.innerText = "انتهت صلاحية هذا الرابط، يرجى مسح الكود الحالي من شاشة المحاضر.";
+            statusMsg.innerText = "انتهت صلاحية هذا الرابط، يرجى مسح الكود الحالي من شاشة الدكتور.";
           }
-          submitBtn.disabled = false;
-          return;
-        }
-
-        if (sessionData.students && sessionData.students[studentId]) {
-          if (statusMsg) {
-            statusMsg.className = "msg error";
-            statusMsg.innerText = "هذا الرقم الأكاديمي تم تسجيله مسبقاً في هذه الجلسة.";
-          }
-          submitBtn.disabled = false;
-          return;
-        }
-
-        const attendanceData = {
-          time: new Date().toLocaleTimeString("ar-EG"),
-          timestamp: Date.now()
-        };
-
-        const res = await fetch(`${FIREBASE_DB_URL}/sessions/${sessionId}/students/${studentId}.json`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(attendanceData)
-        });
-
-        if (res.ok) {
-          localStorage.setItem(`attended_${sessionId}`, studentId);
-          if (statusMsg) {
-            statusMsg.className = "msg success";
-            statusMsg.innerText = `تم تسجيل حضورك بنجاح! (${studentId})`;
-          }
-          if (studentIdInput) studentIdInput.disabled = true;
-        } else {
-          throw new Error("فشل الحفظ");
-        }
-      } catch (e) {
-        if (statusMsg) {
-          statusMsg.className = "msg error";
-          statusMsg.innerText = "حدث خطأ أثناء التسجيل، حاول مجدداً.";
-        }
-        submitBtn.disabled = false;
-      }
-    });
-  }
-</script>
-</body>
-</html>
+          submitBtn.disabled
