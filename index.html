@@ -151,10 +151,12 @@
 
   async function verifyLinkValidity() {
     if (!sessionId || !token) {
-      timerBadge.className = "timer-badge warning";
-      timerBadge.innerHTML = "❌ الرابط غير صالح أو ناقص (يجب الدخول عبر مسح QR المحاضر).";
-      studentIdInput.style.display = "none";
-      submitBtn.style.display = "none";
+      if (timerBadge) {
+        timerBadge.className = "timer-badge warning";
+        timerBadge.innerHTML = "❌ الرابط غير صالح أو ناقص.";
+      }
+      if (studentIdInput) studentIdInput.style.display = "none";
+      if (submitBtn) submitBtn.style.display = "none";
       return;
     }
 
@@ -163,94 +165,122 @@
       const sessionData = await res.json();
 
       if (!sessionData || sessionData.active !== true) {
-        timerBadge.className = "timer-badge warning";
-        timerBadge.innerHTML = "هذه الجلسة مغلقة.";
+        if (timerBadge) {
+          timerBadge.className = "timer-badge warning";
+          timerBadge.innerHTML = "هذه الجلسة مغلقة.";
+        }
         return;
       }
 
       if (sessionData.currentToken !== token) {
-        timerBadge.className = "timer-badge warning";
-        statusMsg.className = "msg error";
-        statusMsg.innerText = "انتهت صلاحية هذا الرابط. يرجى مسح الكود الحالي من شاشة المحاضر.";
+        if (timerBadge) {
+          timerBadge.className = "timer-badge warning";
+        }
+        if (statusMsg) {
+          statusMsg.className = "msg error";
+          statusMsg.innerText = "انتهت صلاحية هذا الرابط. يرجى مسح الكود الحالي.";
+        }
         return;
       }
 
-      timerBadge.className = "timer-badge";
-      timerBadge.innerHTML = "الرابط نشط وصحيح";
-      studentIdInput.disabled = false;
-      submitBtn.disabled = false;
-      submitBtn.innerText = "تسجيل الحضور";
+      if (timerBadge) {
+        timerBadge.className = "timer-badge";
+        timerBadge.innerHTML = "الرابط نشط وصحيح";
+      }
+      if (studentIdInput) studentIdInput.disabled = false;
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerText = "تسجيل الحضور";
+      }
 
     } catch (err) {
-      timerBadge.className = "timer-badge warning";
-      timerBadge.innerHTML = "خطأ في الاتصال بالخادم.";
+      if (timerBadge) {
+        timerBadge.className = "timer-badge warning";
+        timerBadge.innerHTML = "خطأ في الاتصال بالخادم.";
+      }
     }
   }
 
   verifyLinkValidity();
 
-  submitBtn.addEventListener("click", async () => {
-    const studentId = studentIdInput.value.trim();
+  if (submitBtn) {
+    submitBtn.addEventListener("click", async () => {
+      const studentId = studentIdInput ? studentIdInput.value.trim() : "";
 
-    if (!/^\d{7}$/.test(studentId)) {
-      statusMsg.className = "msg error";
-      statusMsg.innerText = "يرجى كتابة رقم ID صحيح مكون من 7 أرقام.";
-      return;
-    }
-
-    if (localStorage.getItem(`attended_${sessionId}`)) {
-      statusMsg.className = "msg error";
-      statusMsg.innerText = "لقد قمت بتسجيل الحضور مسبقاً في هذه الجلسة.";
-      return;
-    }
-
-    submitBtn.disabled = true;
-    statusMsg.className = "msg";
-    statusMsg.innerText = "جاري التحقق والتسجيل...";
-
-    try {
-      const sessionCheck = await fetch(`${FIREBASE_DB_URL}/sessions/${sessionId}.json`);
-      const sessionData = await sessionCheck.json();
-
-      if (!sessionData || sessionData.active !== true || sessionData.currentToken !== token) {
-        statusMsg.className = "msg error";
-        statusMsg.innerText = "انتهت صلاحية هذا الرابط تماماً، لا يمكن التسجيل.";
-        submitBtn.disabled = false;
+      if (!/^\d{7}$/.test(studentId)) {
+        if (statusMsg) {
+          statusMsg.className = "msg error";
+          statusMsg.innerText = "يرجى كتابة رقم ID صحيح مكون من 7 أرقام.";
+        }
         return;
       }
 
-      if (sessionData.students && sessionData.students[studentId]) {
-        statusMsg.className = "msg error";
-        statusMsg.innerText = "هذا الرقم الأكاديمي تم تسجيله مسبقاً في هذه الجلسة.";
-        submitBtn.disabled = false;
+      if (localStorage.getItem(`attended_${sessionId}`)) {
+        if (statusMsg) {
+          statusMsg.className = "msg error";
+          statusMsg.innerText = "لقد قمت بتسجيل الحضور مسبقاً في هذه الجلسة.";
+        }
         return;
       }
 
-      const attendanceData = {
-        time: new Date().toLocaleTimeString("ar-EG"),
-        timestamp: Date.now()
-      };
-
-      const res = await fetch(`${FIREBASE_DB_URL}/sessions/${sessionId}/students/${studentId}.json`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(attendanceData)
-      });
-
-      if (res.ok) {
-        localStorage.setItem(`attended_${sessionId}`, studentId);
-        statusMsg.className = "msg success";
-        statusMsg.innerText = `تم تسجيل حضورك بنجاح! (${studentId})`;
-        studentIdInput.disabled = true;
-      } else {
-        throw new Error("فشل الحفظ");
+      submitBtn.disabled = true;
+      if (statusMsg) {
+        statusMsg.className = "msg";
+        statusMsg.innerText = "جاري التحقق والتسجيل...";
       }
-    } catch (e) {
-      statusMsg.className = "msg error";
-      statusMsg.innerText = "حدث خطأ أثناء التسجيل، حاول مجدداً.";
-      submitBtn.disabled = false;
-    }
-  });
+
+      try {
+        const sessionCheck = await fetch(`${FIREBASE_DB_URL}/sessions/${sessionId}.json`);
+        const sessionData = await sessionCheck.json();
+
+        if (!sessionData || sessionData.active !== true || sessionData.currentToken !== token) {
+          if (statusMsg) {
+            statusMsg.className = "msg error";
+            statusMsg.innerText = "انتهت صلاحية هذا الرابط تماماً، لا يمكن التسجيل.";
+          }
+          submitBtn.disabled = false;
+          return;
+        }
+
+        if (sessionData.students && sessionData.students[studentId]) {
+          if (statusMsg) {
+            statusMsg.className = "msg error";
+            statusMsg.innerText = "هذا الرقم الأكاديمي تم تسجيله مسبقاً في هذه الجلسة.";
+          }
+          submitBtn.disabled = false;
+          return;
+        }
+
+        const attendanceData = {
+          time: new Date().toLocaleTimeString("ar-EG"),
+          timestamp: Date.now()
+        };
+
+        const res = await fetch(`${FIREBASE_DB_URL}/sessions/${sessionId}/students/${studentId}.json`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(attendanceData)
+        });
+
+        if (res.ok) {
+          localStorage.setItem(`attended_${sessionId}`, studentId);
+          if (statusMsg) {
+            statusMsg.className = "msg success";
+            statusMsg.innerText = `تم تسجيل حضورك بنجاح! (${studentId})`;
+          }
+          if (studentIdInput) studentIdInput.disabled = true;
+        } else {
+          throw new Error("فشل الحفظ");
+        }
+      } catch (e) {
+        if (statusMsg) {
+          statusMsg.className = "msg error";
+          statusMsg.innerText = "حدث خطأ أثناء التسجيل، حاول مجدداً.";
+        }
+        submitBtn.disabled = false;
+      }
+    });
+  }
 </script>
 </body>
 </html>
