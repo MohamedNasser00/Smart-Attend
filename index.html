@@ -232,7 +232,6 @@
       }
 
       // 2. التحقق من تطابق التوكن المتحرك (Dynamic QR Token) مع السيرفر
-      // إذا كان التوكن على الشاشة قد تغير خلال الـ 5 ثوانٍ، نرفض الكود القديم فوراً
       if (sessionData.currentToken && token && sessionData.currentToken !== token) {
         statusMsg.className = "msg error";
         statusMsg.innerText = "⚠️ هذا الكود انتهى وتم تحديثه على شاشة المحاضر، يرجى مسح الكود الظاهر حالياً.";
@@ -243,7 +242,7 @@
       // 3. التحقق من وقت إنشاء التوكن (Strict 5-Seconds Check on Firebase)
       if (sessionData.tokenTimestamp) {
         const elapsedSeconds = (Date.now() - sessionData.tokenTimestamp) / 1000;
-        if (elapsedSeconds > 6) { // سماح بفرق بسيط لسرعة الشبكة (6 ثوانٍ كحدقصدي أقصى)
+        if (elapsedSeconds > 6) { // سماح بفرق بسيط لسرعة الشبكة (6 ثوانٍ كحد أقصى)
           statusMsg.className = "msg error";
           statusMsg.innerText = "⚠️ لقد استغرقت وقتاً طويلاً، انتهت صلاحية هذا الرمز.";
           submitBtn.disabled = false;
